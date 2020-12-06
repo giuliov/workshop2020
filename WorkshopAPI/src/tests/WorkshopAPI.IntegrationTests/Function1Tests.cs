@@ -43,7 +43,7 @@ namespace WorkshopAPI.IntegrationTests
             Assert.Equal(resultInsertedEntity.Timestamp, timestamp);
         }
 
-        [Fact]
+        [Fact, Trait("Category", "SmokeTests")]
         public async void Get_a_wellknown_entity()
         {
             string connectionString = Environment.GetEnvironmentVariable("StorageConnectionString");

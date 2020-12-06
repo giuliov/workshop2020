@@ -242,3 +242,14 @@ stages:
               WebAppName: '$(AppNameFromSetup)'
               ResourceGroupName: '$(resourcegroup_name)'
               SourceSlot: 'staging'
+          # run a subset of tests against the Function in Production
+          - task: DotNetCoreCLI@2
+            displayName: Smoke Tests
+            inputs:
+              command: 'test'
+              projects: WorkshopAPI/src/tests/WorkshopAPI.IntegrationTests/WorkshopAPI.IntegrationTests.csproj
+              arguments: ' --filter Category=SmokeTests'
+              testRunTitle: 'Smoke Tests'
+            env:
+              StorageConnectionString: $(StorageConnectionStringFromSetup)
+              BaseUrl: $(ProductionBaseUrlFromSetup)

@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.30626.31
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SelfUpdater", "SelfUpdater.csproj", "{121F047A-6571-4362-AED6-DEE59B8A9136}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{121F047A-6571-4362-AED6-DEE59B8A9136}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{121F047A-6571-4362-AED6-DEE59B8A9136}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{121F047A-6571-4362-AED6-DEE59B8A9136}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{121F047A-6571-4362-AED6-DEE59B8A9136}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {21B7637D-4722-44CA-B77C-14ED71D2699D}
+	EndGlobalSection
+EndGlobal

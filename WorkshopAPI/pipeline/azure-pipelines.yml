@@ -211,3 +211,34 @@ stages:
     - publish: $(Build.ArtifactStagingDirectory)/ReleaseNotes.md
       artifact: doc
 
+- stage: DeployToProduction
+  displayName: Deploy to Production
+  dependsOn:
+    - Setup # we need values from ARM Template deployment
+    - DeployToStaging
+  condition: and(succeeded(), eq(variables.is_main_branch, true))
+  jobs:
+  - deployment: DeployProduction
+    environment: 'Production'
+    variables:
+      # values from previous Stage
+      StorageConnectionStringFromSetup: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.ProductionConnectionString'] ]
+      AppNameFromSetup: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.FunctionAppName'] ]
+      ProductionBaseUrlFromSetup: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.ProductionBaseUrl'] ]
+    strategy:
+      runOnce:
+        deploy:
+          pool:
+            vmImage: '$(agent_image_name)'
+        
+          steps:
+          # need test source code
+          - checkout: self
+          # Staging replaces Production
+          - task: AzureAppServiceManage@0
+            inputs:
+              azureSubscription: '$(arm_connection)'
+              Action: 'Swap Slots'
+              WebAppName: '$(AppNameFromSetup)'
+              ResourceGroupName: '$(resourcegroup_name)'
+              SourceSlot: 'staging'

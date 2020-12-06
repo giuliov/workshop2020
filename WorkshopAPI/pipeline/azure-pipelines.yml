@@ -77,7 +77,7 @@ stages:
       inputs:
         command: 'test'
         projects: WorkshopAPI/src/tests/WorkshopAPI.UnitTests/WorkshopAPI.UnitTests.csproj
-        arguments: '--results-directory "$(System.DefaultWorkingDirectory)/testresults" --logger trx'
+        arguments: '--collect "XPlat Code Coverage" --results-directory "$(System.DefaultWorkingDirectory)/testresults" --logger trx'
         publishTestResults: false
         testRunTitle: 'Unit Tests'
         workingDirectory: '$(System.DefaultWorkingDirectory)/WorkshopAPI/src'
@@ -88,3 +88,17 @@ stages:
         testResultsFiles: '**/*.trx'
         searchFolder: '$(System.DefaultWorkingDirectory)/testresults'
         testRunTitle: 'Unit Tests'
+    - task: reportgenerator@4
+      displayName: ReportGenerator
+      inputs:
+        reports: '$(System.DefaultWorkingDirectory)/testresults/*/coverage.cobertura.xml'
+        targetdir: '$(System.DefaultWorkingDirectory)/coveragereport'
+        sourcedirs: WorkshopAPI/src/API
+    - task: PublishCodeCoverageResults@1
+      displayName: 'Publish code coverage from $(System.DefaultWorkingDirectory)/testresults/*/Cobertura.xml'
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/coveragereport/Cobertura.xml'
+        pathToSources: '$(System.DefaultWorkingDirectory)/WorkshopAPI/src/API'
+        additionalCodeCoverageFiles: '$(System.DefaultWorkingDirectory)/coveragereport/index.html'
+        failIfCoverageEmpty: true

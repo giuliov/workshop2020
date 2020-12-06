@@ -55,6 +55,7 @@ stages:
         overrideParameters: '-functionAppName $(functionapp_name) -productVersion $(version_semantic)'
         deploymentMode: 'Incremental'
         deploymentOutputs: 'JsonArmOutputs'
+
 - stage: Build
   displayName: Build stage
   dependsOn: Setup
@@ -66,6 +67,20 @@ stages:
       vmImage: $(agent_image_name)
 
     steps:
+    # Sonar configuration
+    - task: SonarCloudPrepare@1
+      inputs:
+        SonarCloud: 'workshop-2020-it'
+        organization: 'workshop-2020-it'
+        scannerMode: 'MSBuild'
+        projectKey: 'workshop-2020-it_docente_api'
+        projectName: 'API (docente)'
+        projectVersion: '$(version_semantic)'
+        extraProperties: |
+          # Additional properties that will be passed to the scanner,
+          # Put one key=value per line, example:
+          sonar.exclusions=**/*.bin
+      condition: and(succeeded(), eq(variables.is_main_branch, true))
     - task: DotNetCoreCLI@2
       displayName: Build
       inputs:
@@ -102,3 +117,11 @@ stages:
         pathToSources: '$(System.DefaultWorkingDirectory)/WorkshopAPI/src/API'
         additionalCodeCoverageFiles: '$(System.DefaultWorkingDirectory)/coveragereport/index.html'
         failIfCoverageEmpty: true
+    - task: SonarCloudAnalyze@1
+      displayName: 'Sonar Analyse'
+      condition: and(succeeded(), eq(variables.is_main_branch, true))
+    - task: SonarCloudPublish@1
+      displayName: 'Sonar Publish'
+      inputs:
+        pollingTimeoutSec: '300'
+      condition: and(succeeded(), eq(variables.is_main_branch, true))

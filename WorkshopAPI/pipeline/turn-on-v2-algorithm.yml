@@ -1,0 +1,71 @@
+trigger: none
+
+variables:
+  arm_connection: 'Microsoft Azure Sponsorship'
+  resourcegroup_name: 'workshop2020'
+  # Agent VM image name
+  agent_image_name: 'windows-2019'
+
+stages:
+- stage: TurnV2onStaging
+  displayName: Turn on v2 Algorithm for Staging
+  jobs:
+  - deployment: TurnV2onStaging
+    environment: 'staging-features'
+    strategy:
+      runOnce:
+        deploy:
+          pool:
+            vmImage: '$(agent_image_name)'
+        
+          steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: '$(arm_connection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                param ($resourceGroupName)
+                $functionAppName = az functionapp list -g $resourceGroupName --query "[].name" -o tsv
+                echo "##vso[task.setvariable variable=FunctionAppName;]${functionAppName}"
+              arguments: '-resourceGroupName $(resourcegroup_name)'
+          - task: AzureAppServiceSettings@1
+            inputs:
+              azureSubscription: '$(arm_connection)'
+              appName: '$(FunctionAppName)'
+              resourceGroupName: '$(resourcegroup_name)'
+              slotName: 'staging'
+              appSettings: '[ { "name": "FF_USE_V2_ALGORITHM", "value": "true", "slotSetting": true }]'
+
+- stage: TurnV2onProduction
+  displayName: Turn on v2 Algorithm for Production
+  dependsOn:
+    - TurnV2onStaging # set order of deployment
+  condition: succeeded()
+  jobs:
+  - deployment: TurnV2onProduction
+    environment: 'production-features'
+    strategy:
+      runOnce:
+        deploy:
+          pool:
+            vmImage: '$(agent_image_name)'
+        
+          steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: '$(arm_connection)'
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                param ($resourceGroupName)
+                $functionAppName = az functionapp list -g $resourceGroupName --query "[].name" -o tsv
+                echo "##vso[task.setvariable variable=FunctionAppName;]${functionAppName}"
+              arguments: '-resourceGroupName $(resourcegroup_name)'
+          - task: AzureAppServiceSettings@1
+            inputs:
+              azureSubscription: '$(arm_connection)'
+              appName: '$(FunctionAppName)'
+              resourceGroupName: '$(resourcegroup_name)'
+              slotName: 'production'
+              appSettings: '[ { "name": "FF_USE_V2_ALGORITHM", "value": "true", "slotSetting": true }]'

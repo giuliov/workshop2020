@@ -55,6 +55,21 @@ stages:
         overrideParameters: '-functionAppName $(functionapp_name) -productVersion $(version_semantic)'
         deploymentMode: 'Incremental'
         deploymentOutputs: 'JsonArmOutputs'
+    # extract a couple of properties from the single Json object into variables
+    - pwsh: |
+        $armOutputs = ConvertFrom-Json '$(JsonArmOutputs)'
+        $value = $armOutputs.ProductionConnectionString.value
+        Write-Host "##vso[task.setvariable variable=ProductionConnectionString;isOutput=true;]$value"
+        $value = $armOutputs.StagingConnectionString.value
+        Write-Host "##vso[task.setvariable variable=StagingConnectionString;isOutput=true;]$value"        
+        $value = $armOutputs.FunctionAppName.value
+        Write-Host "##vso[task.setvariable variable=FunctionAppName;isOutput=true;]$value"
+        $value = $armOutputs.StagingBaseUrl.value
+        Write-Host "##vso[task.setvariable variable=StagingBaseUrl;isOutput=true;]$value"
+        $value = $armOutputs.ProductionBaseUrl.value
+        Write-Host "##vso[task.setvariable variable=ProductionBaseUrl;isOutput=true;]$value"
+      name: generateArmVariables
+      displayName: Capture ARM output and generate stage variables
 
 - stage: Build
   displayName: Build stage
@@ -149,9 +164,26 @@ stages:
     displayName: Deploy
     pool:
       vmImage: '$(agent_image_name)'
+    variables:
+      # values from previous Stage
+      StorageConnectionStringFromSetup: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.StagingConnectionString'] ]
+      AppNameFromSetup: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.FunctionAppName'] ]
+      BaseUrlFromSetup: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.StagingBaseUrl'] ]
 
     steps:
     # download the Zip file
     - download: current
       artifact: function_package
+    # this is the deployment step into Staging slot
+    - task: AzureFunctionApp@1
+      displayName: 'Azure functions app deploy'
+      inputs:
+        azureSubscription: '$(arm_connection)'
+        appType: 'functionApp'
+        appName: '$(AppNameFromSetup)'
+        deployToSlotOrASE: true
+        resourceGroupName: '$(resourcegroup_name)'
+        slotName: 'staging'
+        package: '$(Pipeline.Workspace)/function_package/$(version_semantic).zip'
+        deploymentMethod: 'runFromPackage' # zipDeploy
 

@@ -72,3 +72,19 @@ stages:
         command: 'build'
         projects: WorkshopAPI/src/API/WorkshopAPI.csproj
         arguments: --output $(System.DefaultWorkingDirectory)/publish_output --configuration $(build_configuration) /p:VERSION=$(version_semantic)
+    - task: DotNetCoreCLI@2
+      displayName: Unit Tests
+      inputs:
+        command: 'test'
+        projects: WorkshopAPI/src/tests/WorkshopAPI.UnitTests/WorkshopAPI.UnitTests.csproj
+        arguments: '--results-directory "$(System.DefaultWorkingDirectory)/testresults" --logger trx'
+        publishTestResults: false
+        testRunTitle: 'Unit Tests'
+        workingDirectory: '$(System.DefaultWorkingDirectory)/WorkshopAPI/src'
+    - task: PublishTestResults@2
+      displayName: 'Publish Test Results **/*.trx'
+      inputs:
+        testResultsFormat: VSTest
+        testResultsFiles: '**/*.trx'
+        searchFolder: '$(System.DefaultWorkingDirectory)/testresults'
+        testRunTitle: 'Unit Tests'

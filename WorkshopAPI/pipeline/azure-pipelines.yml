@@ -196,4 +196,18 @@ stages:
       env:
         StorageConnectionString: $(StorageConnectionStringFromSetup)
         BaseUrl: $(BaseUrlFromSetup)
+    - task: XplatGenerateReleaseNotes@3
+      inputs:
+        outputfile: '$(Build.ArtifactStagingDirectory)/ReleaseNotes.md'
+        templateLocation: 'File'
+        templatefile: 'WorkshopAPI/pipeline/ReleaseNotes-Template.md'
+        checkStage: true
+        dumpPayloadToConsole: false
+        dumpPayloadToFile: false
+        replaceFile: true
+        getParentsAndChildren: false
+        getAllParents: false
+        getIndirectPullRequests: false
+    - publish: $(Build.ArtifactStagingDirectory)/ReleaseNotes.md
+      artifact: doc
 

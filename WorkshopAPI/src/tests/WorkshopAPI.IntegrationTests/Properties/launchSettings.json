@@ -1,0 +1,7 @@
+{
+  "profiles": {
+    "WorkshopAPI.IntegrationTests": {
+      "commandName": "Project"
+    }
+  }
+}

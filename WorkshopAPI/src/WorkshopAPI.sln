@@ -15,10 +15,17 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "setup", "setup", "{DC16D6AA
 		..\setup\ARM-template\template.json = ..\setup\ARM-template\template.json
 	EndProjectSection
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{53CD8D94-B831-4905-8902-5EA62605B665}"
+	ProjectSection(SolutionItems) = preProject
+		tests\WorkshopAPI.IntegrationTests\local.runsettings = tests\WorkshopAPI.IntegrationTests\local.runsettings
+	EndProjectSection
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "pipeline", "pipeline", "{9B3A3080-CF7B-4DFE-AD3B-C36024485195}"
 	ProjectSection(SolutionItems) = preProject
 		..\pipeline\azure-pipelines.yml = ..\pipeline\azure-pipelines.yml
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WorkshopAPI.IntegrationTests", "tests\WorkshopAPI.IntegrationTests\WorkshopAPI.IntegrationTests.csproj", "{12372881-90BD-41B3-9526-E2BABFD93138}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

@@ -186,4 +186,14 @@ stages:
         slotName: 'staging'
         package: '$(Pipeline.Workspace)/function_package/$(version_semantic).zip'
         deploymentMethod: 'runFromPackage' # zipDeploy
+    # run tests against the Function in Staging
+    - task: DotNetCoreCLI@2
+      displayName: Integration Tests
+      inputs:
+        command: 'test'
+        projects: WorkshopAPI/src/tests/WorkshopAPI.IntegrationTests/WorkshopAPI.IntegrationTests.csproj
+        testRunTitle: 'Integration Tests'
+      env:
+        StorageConnectionString: $(StorageConnectionStringFromSetup)
+        BaseUrl: $(BaseUrlFromSetup)
 

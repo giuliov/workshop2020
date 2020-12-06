@@ -1,0 +1,57 @@
+trigger:
+  branches:
+    include:
+    - '*'
+  paths:
+    include:
+    - WorkshopAPI/*
+    exclude:
+    - '*'
+
+variables:
+  main_branch: 'master'
+  is_main_branch: $[eq(variables['Build.SourceBranchName'], variables['main_branch'])]
+  build_configuration: 'Release'
+  # semantic versioning version
+  version_major_minor: 1.0
+  version_semantic: '$(Build.BuildNumber)'
+  # Azure Resource Manager connection created during pipeline creation
+  arm_connection: 'Microsoft Azure Sponsorship'
+  azure_subscription_id: '2e2951eb-61c7-446c-bc0c-d3896ec352b6'
+  resourcegroup_name: 'workshop2020'
+  # Function app name
+  functionapp_name: 'api'
+  # Agent VM image name
+  agent_image_name: 'windows-2019'
+
+# this is the simplest way to generate a three-part SemVer (https://semver.org/) id
+# CAVEAT: some tools breaks when a part goes above 65535, which might happen using BuildID on a busy Organization
+name: $(version_major_minor).$(BuildID)
+# the following is slightly better but it is a 4-part not compliant with SemVer
+#name: $(version_major_minor).$(Year:yy)$(DayOfYear)$(Rev:.r)
+
+stages:
+- stage: Setup
+  displayName: Setup stage
+  jobs:
+  - job: Setup
+    displayName: Setup
+    pool:
+      vmImage: $(agent_image_name)
+
+    steps:
+    # redeploy the ARM Template to configure Azure Resources
+    - task: AzureResourceManagerTemplateDeployment@3
+      inputs:
+        deploymentScope: 'Resource Group'
+        azureResourceManagerConnection: '$(arm_connection)'
+        subscriptionId: '$(azure_subscription_id)'
+        action: 'Create Or Update Resource Group'
+        resourceGroupName: '$(resourcegroup_name)'
+        location: 'West Europe'
+        templateLocation: 'Linked artifact'
+        csmFile: '$(Build.SourcesDirectory)/WorkshopAPI/setup/ARM-template/template.json'
+        csmParametersFile: '$(Build.SourcesDirectory)/WorkshopAPI/setup/ARM-template/parameters.json'
+        overrideParameters: '-functionAppName $(functionapp_name) -productVersion $(version_semantic)'
+        deploymentMode: 'Incremental'
+        deploymentOutputs: 'JsonArmOutputs'

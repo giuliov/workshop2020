@@ -1,0 +1,352 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "functionAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the Function App that you wish to create."
+      }
+    },
+    "productVersion": {
+      "type": "string"
+    },
+    "hostingPlanName": {
+      "type": "string",
+      "defaultValue": "[concat(parameters('functionAppName'),'-plan')]",
+      "metadata": {
+        "description": "The name of the Hosting Plan associated with the Function App."
+      }
+    },
+    "hostingPlanSkuTier": {
+      "type": "string",
+      "defaultValue": "Standard",
+      "metadata": {
+        "description": "Service tier of the resource SKU"
+      }
+    },
+    "hostingPlanSkuCode": {
+      "type": "string",
+      "defaultValue": "S1",
+      "metadata": {
+        "description": "Name of the resource SKU"
+      }
+    },
+    "workerSize": {
+      "type": "string",
+      "defaultValue": "0"
+    },
+    "workerSizeId": {
+      "type": "string",
+      "defaultValue": "0"
+    },
+    "numberOfWorkers": {
+      "type": "string",
+      "defaultValue": "1"
+    },
+    "appInsightName": {
+      "type": "string",
+      "defaultValue": "[concat(parameters('functionAppName'),'-ai')]",
+      "metadata": {
+        "description": "The name of the AppInsight instance associated with the Function App."
+      }
+    },
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "[concat(replace(replace(replace(parameters('functionAppName'),'-', ''),'_', ''),'.', ''), uniquestring(resourceGroup().id))]",
+      "metadata": {
+        "description": "The name of the Storage Account associated with the Function App."
+      }
+    },
+    "storageAccountType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS",
+        "Standard_RAGRS"
+      ],
+      "metadata": {
+        "description": "Storage Account type"
+      }
+    },
+    "tableName": {
+      "type": "string",
+      "defaultValue": "SomeEntity"
+    }
+  },
+  "variables": {
+    "functionHostName": "[concat(parameters('functionAppName'), uniquestring(resourceGroup().id))]",
+    "baseStorageAccountName": "[if(greater(length(parameters('storageAccountName')), 22), substring(parameters('storageAccountName'), 0, 22), parameters('storageAccountName'))]",
+    "storageAccountName_production": "[concat(variables('baseStorageAccountName'), 'pr')]",
+    "storageAccountName_staging": "[concat(variables('baseStorageAccountName'), 'st')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2018-11-01",
+      "name": "[variables('functionHostName')]",
+      "type": "Microsoft.Web/sites",
+      "kind": "functionapp",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "dependsOn": [
+        "[concat('microsoft.insights/components/', parameters('appInsightName'))]",
+        "[concat('Microsoft.Web/serverfarms/', parameters('hostingPlanName'))]",
+        "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName_production'))]"
+      ],
+      "properties": {
+        "name": "[variables('functionHostName')]",
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "dotnet"
+            },
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference(concat('microsoft.insights/components/', parameters('appInsightName')), '2015-05-01').InstrumentationKey]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(concat('microsoft.insights/components/', parameters('appInsightName')), '2015-05-01').ConnectionString]"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName_production'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_production')), '2019-06-01').keys[0].value,';EndpointSuffix=','core.windows.net')]"
+            }
+          ],
+          "connectionStrings": [
+            {
+              "name": "AzureWebJobs_WorkshopAPI_SomeEntity",
+              "connectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName_production'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_production')), '2019-06-01').keys[0].value,';EndpointSuffix=','core.windows.net')]",
+              "type": "Custom"
+            }
+          ],
+          "use32BitWorkerProcess": false
+        },
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+        "clientAffinityEnabled": false
+      },
+      "resources": [
+        {
+          "type": "config",
+          "name": "slotConfigNames",
+          "apiVersion": "2015-08-01",
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('functionHostName'))]"
+          ],
+          "tags": {
+            "displayName": "slotConfigNames"
+          },
+          "properties": {
+            "appSettingNames": [
+              "AzureWebJobsStorage"
+            ],
+            "connectionStringsNames": [
+              "AzureWebJobs_WorkshopAPI_SomeEntity"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "apiVersion": "2018-11-01",
+      "name": "[parameters('hostingPlanName')]",
+      "type": "Microsoft.Web/serverfarms",
+      "location": "[resourceGroup().location]",
+      "kind": "",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "dependsOn": [],
+      "properties": {
+        "name": "[parameters('hostingPlanName')]",
+        "workerSize": "[parameters('workerSize')]",
+        "workerSizeId": "[parameters('workerSizeId')]",
+        "numberOfWorkers": "[parameters('numberOfWorkers')]",
+        "reserved": false
+      },
+      "sku": {
+        "Tier": "[parameters('hostingPlanSkuTier')]",
+        "Name": "[parameters('hostingPlanSkuCode')]"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/hostNameBindings",
+      "apiVersion": "2018-11-01",
+      "name": "[concat(variables('functionHostName'), '/', variables('functionHostName'), '.azurewebsites.net')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionHostName'))]"
+      ],
+      "properties": {
+        "siteName": "[variables('functionHostName')]",
+        "hostNameType": "Verified"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/slots",
+      "apiVersion": "2018-11-01",
+      "name": "[concat(variables('functionHostName'), '/staging')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('functionHostName'))]",
+        "[concat('Microsoft.Storage/storageAccounts/', variables('storageAccountName_staging'))]"
+      ],
+      "kind": "functionapp",
+      "properties": {
+        "enabled": true,
+        "hostNameSslStates": [
+          {
+            "name": "[concat(variables('functionHostName'), '-staging.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Standard"
+          },
+          {
+            "name": "[concat(variables('functionHostName'), '-staging.scm.azurewebsites.net')]",
+            "sslState": "Disabled",
+            "hostType": "Repository"
+          }
+        ],
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', parameters('hostingPlanName'))]",
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~3"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "dotnet"
+            },
+            {
+              "name": "APPINSIGHTS_INSTRUMENTATIONKEY",
+              "value": "[reference(concat('microsoft.insights/components/', parameters('appInsightName')), '2015-05-01').InstrumentationKey]"
+            },
+            {
+              "name": "APPLICATIONINSIGHTS_CONNECTION_STRING",
+              "value": "[reference(concat('microsoft.insights/components/', parameters('appInsightName')), '2015-05-01').ConnectionString]"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName_staging'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_staging')), '2019-06-01').keys[0].value,';EndpointSuffix=','core.windows.net')]"
+            }
+          ],
+          "connectionStrings": [
+            {
+              "name": "AzureWebJobs_WorkshopAPI_SomeEntity",
+              "connectionString": "[concat('DefaultEndpointsProtocol=https;AccountName=',variables('storageAccountName_staging'),';AccountKey=',listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_staging')), '2019-06-01').keys[0].value,';EndpointSuffix=','core.windows.net')]",
+              "type": "Custom"
+            }
+          ],
+          "use32BitWorkerProcess": false
+        }
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites/slots/hostNameBindings",
+      "apiVersion": "2018-11-01",
+      "name": "[concat(variables('functionHostName'), '/staging/', variables('functionHostName'), '-staging.azurewebsites.net')]",
+      "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites/slots', variables('functionHostName'), 'staging')]",
+        "[resourceId('Microsoft.Web/sites', variables('functionHostName'))]"
+      ],
+      "properties": {
+        "siteName": "[concat(variables('functionHostName'), '(staging)')]",
+        "hostNameType": "Verified"
+      }
+    },
+    {
+      "apiVersion": "2020-02-02-preview",
+      "name": "[parameters('appInsightName')]",
+      "type": "microsoft.insights/components",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "dependsOn": [],
+      "properties": {
+        "ApplicationId": "[variables('functionHostName')]",
+        "Request_Source": "IbizaWebAppExtensionCreate",
+        "Flow_Type": "Redfield",
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[concat('/subscriptions/',subscription().subscriptionId,'/resourceGroups/DefaultResourceGroup-WEU/providers/Microsoft.OperationalInsights/workspaces/DefaultWorkspace-',subscription().subscriptionId,'-WEU')]"
+      }
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName_production')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "sku": {
+        "name": "[parameters('storageAccountType')]"
+      },
+      "properties": {
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "name": "[concat(variables('storageAccountName_production'),'/default/',parameters('tableName'))]",
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2019-06-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_production'))]"
+      ]
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName_staging')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "sku": {
+        "name": "[parameters('storageAccountType')]"
+      },
+      "properties": {
+        "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+      "name": "[concat(variables('storageAccountName_staging'),'/default/',parameters('tableName'))]",
+      "type": "Microsoft.Storage/storageAccounts/tableServices/tables",
+      "apiVersion": "2019-06-01",
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_staging'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "ProductionConnectionString": {
+      "type": "string",
+      "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName_production'), ';AccountKey=', listKeys(resourceId(resourceGroup().name,'Microsoft.Storage/storageAccounts', variables('storageAccountName_production')), '2019-04-01').keys[0].value,';EndpointSuffix=core.windows.net')]"
+    },
+    "StagingConnectionString": {
+      "type": "string",
+      "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('storageAccountName_staging'), ';AccountKey=', listKeys(resourceId(resourceGroup().name,'Microsoft.Storage/storageAccounts', variables('storageAccountName_staging')), '2019-04-01').keys[0].value,';EndpointSuffix=core.windows.net')]"
+    },
+    "FunctionAppName": {
+      "type": "string",
+      "value": "[variables('functionHostName')]"
+    },
+    "StagingBaseUrl": {
+      "type": "string",
+      "value": "[concat('https://',variables('functionHostName'), '-staging.azurewebsites.net')]"
+    },
+    "ProductionBaseUrl": {
+      "type": "string",
+      "value": "[concat('https://',variables('functionHostName'), '.azurewebsites.net')]"
+    }
+  }
+}

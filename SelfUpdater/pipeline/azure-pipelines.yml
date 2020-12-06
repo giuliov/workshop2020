@@ -1,0 +1,163 @@
+trigger:
+  branches:
+    include:
+    - '*'
+  paths:
+    include:
+    - SelfUpdater/*
+    exclude:
+    - '*'
+
+variables:
+  main_branch: 'master'
+  is_main_branch: $[eq(variables['Build.SourceBranchName'], variables['main_branch'])]
+  build_configuration: 'Release'
+  # semantic versioning version
+  version_major_minor: 1.0
+  ${{ if ne(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_patch: 0 # manually align!
+  ${{ if eq(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_patch: $[counter( format('{0}-{1}', variables.main_branch, variables.version_major_minor), 0)]
+  ${{ if ne(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_semantic: '$(version_major_minor).$(version_patch)-b$(Build.BuildId)'
+  ${{ if eq(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_semantic: '$(version_major_minor).$(version_patch)'
+  # Azure Resource Manager connection created during pipeline creation
+  arm_connection: 'Microsoft Azure Sponsorship'
+  azure_subscription_id: '2e2951eb-61c7-446c-bc0c-d3896ec352b6'
+  resourcegroup_name: 'workshop2020'
+  # App name
+  app_name: 'selfupdater'
+  # Agent VM image name
+  agent_image_name: 'windows-2019'
+
+stages:
+- stage: Setup
+  displayName: Setup stage
+  jobs:
+  - job: Setup
+    displayName: Setup
+    pool:
+      vmImage: $(agent_image_name)
+
+    steps:
+    # set the build number to match the version
+    - pwsh: 'Write-Host "##vso[build.updatebuildnumber]${env:NEW_BUILD_NUMBER}"'
+      displayName: 'Set build number'
+      env:
+        NEW_BUILD_NUMBER: '$(version_semantic)'
+    # redeploy the ARM Template to configure Azure Resources
+    - task: AzureResourceManagerTemplateDeployment@3
+      inputs:
+        deploymentScope: 'Resource Group'
+        azureResourceManagerConnection: '$(arm_connection)'
+        subscriptionId: '$(azure_subscription_id)'
+        action: 'Create Or Update Resource Group'
+        resourceGroupName: '$(resourcegroup_name)'
+        location: 'West Europe'
+        templateLocation: 'Linked artifact'
+        csmFile: '$(Build.SourcesDirectory)/SelfUpdater/setup/ARM-template/template.json'
+        csmParametersFile: '$(Build.SourcesDirectory)/SelfUpdater/setup/ARM-template/parameters.json'
+        overrideParameters: '-appName $(app_name) -productVersion $(version_semantic)'
+        deploymentMode: 'Incremental'
+        deploymentOutputs: 'JsonArmOutputs'
+    # extract from the single Json object into variables
+    - pwsh: |
+        $armOutputs = ConvertFrom-Json '$(JsonArmOutputs)'
+        $value = $armOutputs.StagingStorageAccount.value
+        Write-Host "##vso[task.setvariable variable=StagingStorageAccount;isOutput=true;]$value"
+        $value = $armOutputs.ProductionStorageAccount.value
+        Write-Host "##vso[task.setvariable variable=ProductionStorageAccount;isOutput=true;]$value"
+        $value = $armOutputs.AppInsightsConnectionString.value
+        Write-Host "##vso[task.setvariable variable=AppInsightsConnectionString;isOutput=true;]$value"
+      name: generateArmVariables
+      displayName: Capture ARM output and generate stage variables
+
+- stage: Build
+  displayName: Build stage
+  dependsOn: Setup
+  condition: succeeded()
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(agent_image_name)
+
+    variables:
+      # values from previous Stage
+      StagingStorageAccount: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.StagingStorageAccount'] ]
+      AppInsightsConnectionString: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.AppInsightsConnectionString'] ]
+
+    steps:
+    # Sonar configuration
+    - task: SonarCloudPrepare@1
+      inputs:
+        SonarCloud: 'workshop-2020-it'
+        organization: 'workshop-2020-it'
+        scannerMode: 'MSBuild'
+        projectKey: 'workshop-2020-it_docente_selfupdater'
+        projectName: 'SelfUpdater (docente)'
+        projectVersion: '$(version_semantic)'
+        extraProperties: |
+          # Additional properties that will be passed to the scanner,
+          # Put one key=value per line, example:
+          sonar.exclusions=**/*.bin
+      condition: and(succeeded(), eq(variables.is_main_branch, true))
+    - pwsh: |
+        "namespace SelfUpdater { static class BuildConstants { public static string AppInsightsConnectionString = `"${env:AppInsightsConnectionString}`"; public static string QueryURL = `"https://${env:StorageAccount}.blob.core.windows.net/${env:Container}?restype=container&comp=list`"; } }" | Out-File -FilePath SelfUpdater/src/BuildConstants.cs -Force
+      env:
+        StorageAccount: $(StagingStorageAccount)
+        Container: $(app_name)
+        AppInsightsConnectionString: $(AppInsightsConnectionString)
+      displayName: Generate constant files
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: 'publish'
+        publishWebProjects: false
+        projects: 'SelfUpdater/src/SelfUpdater.csproj'
+        arguments: '--output $(System.DefaultWorkingDirectory)/publish_output --configuration $(build_configuration) /p:VERSION=$(version_semantic)'
+        zipAfterPublish: false
+        modifyOutputPath: false
+    - task: SonarCloudAnalyze@1
+      displayName: 'Sonar Analyse'
+      condition: and(succeeded(), eq(variables.is_main_branch, true))
+    - task: SonarCloudPublish@1
+      displayName: 'Sonar Publish'
+      inputs:
+        pollingTimeoutSec: '300'
+      condition: and(succeeded(), eq(variables.is_main_branch, true))
+    # Zip for deployment
+    - task: ArchiveFiles@2
+      displayName: 'Package $(app_name) App'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/publish_output'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic).zip
+        replaceExistingArchive: true
+    # this is the deployment step into Staging slot
+    - task: AzureFileCopy@3
+      displayName: 'Upload Zip to Staging'
+      inputs:
+        SourcePath: '$(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic).zip'
+        azureSubscription: '$(arm_connection)'
+        Destination: 'AzureBlob'
+        storage: '$(StagingStorageAccount)'
+        ContainerName: '$(app_name)'
+        sasTokenTimeOutInMinutes: '20'
+    - task: XplatGenerateReleaseNotes@3
+      inputs:
+        outputfile: '$(Build.ArtifactStagingDirectory)/ReleaseNotes.md'
+        templateLocation: 'File'
+        templatefile: 'SelfUpdater/pipeline/ReleaseNotes-Template.md'
+        checkStage: true
+        dumpPayloadToConsole: false
+        dumpPayloadToFile: false
+        replaceFile: true
+        getParentsAndChildren: false
+        getAllParents: false
+        tags: 'last-release'
+        getIndirectPullRequests: false
+    - publish: $(Build.ArtifactStagingDirectory)/ReleaseNotes.md
+      artifact: doc

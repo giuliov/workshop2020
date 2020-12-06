@@ -1,0 +1,135 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "type": "string",
+      "metadata": {
+        "description": "The name of the App that you wish to manage."
+      }
+    },
+    "productVersion": {
+      "type": "string"
+    },
+    "appInsightName": {
+      "type": "string",
+      "defaultValue": "[concat(parameters('appName'),'-ai')]",
+      "metadata": {
+        "description": "The name of the AppInsight instance associated with the App."
+      }
+    },
+    "storageAccountName": {
+      "type": "string",
+      "defaultValue": "[concat(replace(replace(replace(parameters('appName'),'-', ''),'_', ''),'.', ''), uniquestring(resourceGroup().id))]",
+      "metadata": {
+        "description": "The name of the Storage Account associated with the App."
+      }
+    },
+    "storageAccountType": {
+      "type": "string",
+      "defaultValue": "Standard_LRS",
+      "allowedValues": [
+        "Standard_LRS",
+        "Standard_GRS",
+        "Standard_RAGRS"
+      ],
+      "metadata": {
+        "description": "Storage Account type"
+      }
+    }
+  },
+  "variables": {
+    "baseStorageAccountName": "[if(greater(length(parameters('storageAccountName')), 22), substring(parameters('storageAccountName'), 0, 22), parameters('storageAccountName'))]",
+    "storageAccountName_production": "[concat(variables('baseStorageAccountName'), 'pr')]",
+    "storageAccountName_staging": "[concat(variables('baseStorageAccountName'), 'st')]"
+  },
+  "resources": [
+    {
+      "apiVersion": "2020-02-02-preview",
+      "name": "[parameters('appInsightName')]",
+      "type": "microsoft.insights/components",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "dependsOn": [],
+      "properties": {
+        "ApplicationId": "[parameters('appName')]",
+        "Request_Source": "IbizaWebAppExtensionCreate",
+        "Flow_Type": "Redfield",
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[concat('/subscriptions/',subscription().subscriptionId,'/resourceGroups/DefaultResourceGroup-WEU/providers/Microsoft.OperationalInsights/workspaces/DefaultWorkspace-',subscription().subscriptionId,'-WEU')]"
+      }
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName_production')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "sku": {
+        "name": "[parameters('storageAccountType')]"
+      },
+      "properties": {
+          "minimumTlsVersion": "TLS1_2",
+          "allowBlobPublicAccess": true,
+          "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+        "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+        "apiVersion": "2020-08-01-preview",
+        "name": "[concat(variables('storageAccountName_production'), '/default/', parameters('appName'))]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_production'))]"
+        ],
+        "properties": {
+            "publicAccess": "Container"
+        }
+    },
+    {
+      "apiVersion": "2019-06-01",
+      "type": "Microsoft.Storage/storageAccounts",
+      "name": "[variables('storageAccountName_staging')]",
+      "location": "[resourceGroup().location]",
+      "tags": {
+        "productVersion": "[parameters('productVersion')]"
+      },
+      "sku": {
+        "name": "[parameters('storageAccountType')]"
+      },
+      "properties": {
+          "minimumTlsVersion": "TLS1_2",
+          "allowBlobPublicAccess": true,
+          "supportsHttpsTrafficOnly": true
+      }
+    },
+    {
+        "type": "Microsoft.Storage/storageAccounts/blobServices/containers",
+        "apiVersion": "2020-08-01-preview",
+        "name": "[concat(variables('storageAccountName_staging'), '/default/', parameters('appName'))]",
+        "dependsOn": [
+            "[resourceId('Microsoft.Storage/storageAccounts', variables('storageAccountName_staging'))]"
+        ],
+        "properties": {
+            "publicAccess": "Container"
+        }
+    }
+  ],
+  "outputs": {
+    "StagingStorageAccount": {
+      "type": "string",
+      "value": "[variables('storageAccountName_staging')]"
+    },
+    "ProductionStorageAccount": {
+      "type": "string",
+      "value": "[variables('storageAccountName_production')]"
+    },
+    "AppInsightsConnectionString": {
+      "type": "string",
+      "value": "[reference(concat('microsoft.insights/components/', parameters('appInsightName')), '2015-05-01').ConnectionString]"
+    }
+  }
+}

@@ -5,6 +5,8 @@ VisualStudioVersion = 16.0.30709.132
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WorkshopAPI", "API\WorkshopAPI.csproj", "{1BA06D38-755F-4E47-A4E9-AA6D6A122BD6}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Seeder", "..\setup\Seeder\Seeder.csproj", "{71F94E9D-7AD6-43C9-B1C4-4D3AA1EB8867}"
+EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DataModels", "DataModels\DataModels.csproj", "{25F326C7-F044-4746-A2DA-AA29A1D835C4}"
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WorkshopAPI.UnitTests", "tests\WorkshopAPI.UnitTests\WorkshopAPI.UnitTests.csproj", "{F97FDFA5-E452-412A-A8B6-E036D7ABE592}"

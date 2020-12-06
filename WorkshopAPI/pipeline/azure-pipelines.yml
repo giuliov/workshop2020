@@ -55,3 +55,20 @@ stages:
         overrideParameters: '-functionAppName $(functionapp_name) -productVersion $(version_semantic)'
         deploymentMode: 'Incremental'
         deploymentOutputs: 'JsonArmOutputs'
+- stage: Build
+  displayName: Build stage
+  dependsOn: Setup
+  condition: succeeded()
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: $(agent_image_name)
+
+    steps:
+    - task: DotNetCoreCLI@2
+      displayName: Build
+      inputs:
+        command: 'build'
+        projects: WorkshopAPI/src/API/WorkshopAPI.csproj
+        arguments: --output $(System.DefaultWorkingDirectory)/publish_output --configuration $(build_configuration) /p:VERSION=$(version_semantic)

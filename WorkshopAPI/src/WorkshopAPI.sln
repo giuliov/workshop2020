@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WorkshopAPI", "API\Workshop
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DataModels", "DataModels\DataModels.csproj", "{25F326C7-F044-4746-A2DA-AA29A1D835C4}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "WorkshopAPI.UnitTests", "tests\WorkshopAPI.UnitTests\WorkshopAPI.UnitTests.csproj", "{F97FDFA5-E452-412A-A8B6-E036D7ABE592}"
+EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "setup", "setup", "{DC16D6AA-C6CD-4FFF-9528-A2AD34CC67A2}"
 	ProjectSection(SolutionItems) = preProject
 		..\setup\ARM-template\parameters.json = ..\setup\ARM-template\parameters.json

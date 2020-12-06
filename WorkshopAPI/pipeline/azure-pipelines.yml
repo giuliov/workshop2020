@@ -14,7 +14,14 @@ variables:
   build_configuration: 'Release'
   # semantic versioning version
   version_major_minor: 1.0
-  version_semantic: '$(Build.BuildNumber)'
+  ${{ if ne(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_patch: 14 # manually align!
+  ${{ if eq(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_patch: $[counter( format('{0}-{1}', variables.main_branch, variables.version_major_minor), 0)]
+  ${{ if ne(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_semantic: '$(version_major_minor).$(version_patch)-b$(Build.BuildId)'
+  ${{ if eq(variables['Build.SourceBranchName'], variables['main_branch']) }}:
+    version_semantic: '$(version_major_minor).$(version_patch)'
   # Azure Resource Manager connection created during pipeline creation
   arm_connection: 'Microsoft Azure Sponsorship'
   azure_subscription_id: '2e2951eb-61c7-446c-bc0c-d3896ec352b6'
@@ -23,12 +30,6 @@ variables:
   functionapp_name: 'api'
   # Agent VM image name
   agent_image_name: 'windows-2019'
-
-# this is the simplest way to generate a three-part SemVer (https://semver.org/) id
-# CAVEAT: some tools breaks when a part goes above 65535, which might happen using BuildID on a busy Organization
-name: $(version_major_minor).$(BuildID)
-# the following is slightly better but it is a 4-part not compliant with SemVer
-#name: $(version_major_minor).$(Year:yy)$(DayOfYear)$(Rev:.r)
 
 stages:
 - stage: Setup
@@ -40,6 +41,11 @@ stages:
       vmImage: $(agent_image_name)
 
     steps:
+    # set the build number to match the version
+    - pwsh: 'Write-Host "##vso[build.updatebuildnumber]${env:NEW_BUILD_NUMBER}"'
+      displayName: 'Set build number'
+      env:
+        NEW_BUILD_NUMBER: '$(version_semantic)'
     # redeploy the ARM Template to configure Azure Resources
     - task: AzureResourceManagerTemplateDeployment@3
       inputs:

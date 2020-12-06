@@ -125,3 +125,33 @@ stages:
       inputs:
         pollingTimeoutSec: '300'
       condition: and(succeeded(), eq(variables.is_main_branch, true))
+    # Zip the Azure Function code for deployment
+    - task: ArchiveFiles@2
+      displayName: 'Package Azure Function'
+      inputs:
+        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/publish_output'
+        includeRootFolder: false
+        archiveType: zip
+        archiveFile: $(Build.ArtifactStagingDirectory)/$(version_semantic).zip
+        replaceExistingArchive: true
+    # upload the Zip file
+    - publish: $(Build.ArtifactStagingDirectory)/$(version_semantic).zip
+      artifact: function_package
+
+- stage: DeployToStaging
+  displayName: Deploy to staging
+  dependsOn:
+    - Setup # we need values from ARM Template deployment
+    - Build
+  condition: succeeded()
+  jobs:
+  - job: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: '$(agent_image_name)'
+
+    steps:
+    # download the Zip file
+    - download: current
+      artifact: function_package
+

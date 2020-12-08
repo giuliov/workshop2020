@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 
 namespace SelfUpdater
 {
@@ -18,14 +19,22 @@ namespace SelfUpdater
                     { "arg", string.Join(' ', args) }
                 });
 
+            // hook to display what is happening
+            SelfUpdater.Log = (message) =>
+            {
+                Console.Write("DBG: ");
+                Console.WriteLine(message);
+            };
+
             try
             {
-                SelfUpdater.SelfUpdateIfRequired(args);
+                args = SelfUpdater.AutoUpdate(args);
 
                 Console.WriteLine("Hello World!");
-
-                // every now and then
-                SelfUpdater.CheckForNewerVersion();
+                for (int i = 0; i < args.Length; i++)
+                {
+                    Console.WriteLine($"Arg[{i + 1}] = '{args[i]}'");
+                }
 
                 return 0;//success
             }

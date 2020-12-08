@@ -136,11 +136,19 @@ stages:
         archiveType: zip
         archiveFile: $(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic).zip
         replaceExistingArchive: true
-    # this is the deployment step into Staging slot
+    # compute SHA
+    - pwsh: |
+        $hash = Get-FileHash $(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic).zip -Algorithm SHA256
+        "$( $hash.Hash )  $( Split-Path -Leaf $hash.Path )" > $(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic)-sha256.txt
+    # this is the deployment step into Staging slot, Windows agent only!
     - task: AzureFileCopy@3
       displayName: 'Upload Zip to Staging'
       inputs:
-        SourcePath: '$(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic).zip'
+        SourcePath: '$(Build.ArtifactStagingDirectory)'
+        additionalArgumentsForBlobCopy: |
+          '/Y' # Supresses all AZCopy Confirmations. Used here to allow overwrites
+          '/Pattern:$(app_name)-$(version_semantic)*.*' # Pattern of files to copy.
+          '/S' # Recursive Copy        
         azureSubscription: '$(arm_connection)'
         Destination: 'AzureBlob'
         storage: '$(StagingStorageAccount)'

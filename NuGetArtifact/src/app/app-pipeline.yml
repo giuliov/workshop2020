@@ -1,0 +1,15 @@
+# APP
+
+trigger:
+- main
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'restore'
+    projects: 'NuGetArtifact/src/app/app.csproj'
+    feedsToUse: 'select'
+    vstsFeed: '234763f0-e909-4df9-99b3-7a322adb7bc2/65eda3e6-bc3d-408c-8ff0-012ce80c75cd'

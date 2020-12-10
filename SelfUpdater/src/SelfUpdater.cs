@@ -228,7 +228,7 @@ namespace SelfUpdater
 
             Log($"Starting newer version");
             var self = Process.GetCurrentProcess();
-            string selfExeFullPath = self.MainModule.FileName;
+            string selfExeFullPath = Assembly.GetExecutingAssembly().Location; // works on Linux & Windows
             string newVersionExeFullPath = Path.Combine(parentDirectory, Path.GetFileName(selfExeFullPath));
             Process.Start(newVersionExeFullPath, originalArgs);
             Log($"Exiting Self-update mode");

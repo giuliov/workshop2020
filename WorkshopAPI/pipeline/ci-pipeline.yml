@@ -1,0 +1,29 @@
+trigger:
+  branches:
+    include:
+    - '*'
+  paths:
+    include:
+    - WorkshopAPI/*
+    exclude:
+    - '*'
+
+variables:
+  build_configuration: 'Release'
+  # semantic versioning version
+  version_major_minor: 1.0
+  version_semantic: '$(version_major_minor).$(Build.BuildId)'
+  # Agent VM image name
+  agent_image_name: 'windows-2019'
+
+name: CI-$(version_major_minor).$(Build.BuildId)
+
+pool:
+  vmImage: $(agent_image_name)
+
+steps:
+- template: templates/build-steps.yaml
+  parameters:
+    sonarCloud: false
+    buildConfiguration: $(build_configuration)
+    version: $(version_semantic)

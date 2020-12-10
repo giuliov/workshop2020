@@ -1,0 +1,82 @@
+# File: build-steps.yaml
+parameters:
+- name: sonarCloud
+  type: boolean
+  default: false
+- name: version
+  type: string
+- name: buildConfiguration
+  type: string
+  default: 'Release'
+
+steps:
+# Sonar configuration
+- ${{ if eq(parameters.sonarCloud, true) }}:
+  - task: SonarCloudPrepare@1
+    inputs:
+      SonarCloud: 'workshop-2020-it'
+      organization: 'workshop-2020-it'
+      scannerMode: 'MSBuild'
+      projectKey: 'workshop-2020-it_docente_api'
+      projectName: 'API (docente)'
+      projectVersion: '${{ parameters.version }}'
+      extraProperties: |
+        # Additional properties that will be passed to the scanner,
+        # Put one key=value per line, example:
+        sonar.exclusions=**/*.bin
+- task: DotNetCoreCLI@2
+  displayName: Build
+  inputs:
+    command: 'build'
+    projects: WorkshopAPI/src/API/WorkshopAPI.csproj
+    arguments: --output $(System.DefaultWorkingDirectory)/publish_output --configuration ${{ parameters.buildConfiguration }} /p:VERSION=${{ parameters.version }}
+- task: DotNetCoreCLI@2
+  displayName: Unit Tests
+  inputs:
+    command: 'test'
+    projects: WorkshopAPI/src/tests/WorkshopAPI.UnitTests/WorkshopAPI.UnitTests.csproj
+    arguments: '--collect "XPlat Code Coverage" --results-directory "$(System.DefaultWorkingDirectory)/testresults" --logger trx'
+    publishTestResults: false
+    testRunTitle: 'Unit Tests'
+    workingDirectory: '$(System.DefaultWorkingDirectory)/WorkshopAPI/src'
+- task: PublishTestResults@2
+  displayName: 'Publish Test Results **/*.trx'
+  inputs:
+    testResultsFormat: VSTest
+    testResultsFiles: '**/*.trx'
+    searchFolder: '$(System.DefaultWorkingDirectory)/testresults'
+    testRunTitle: 'Unit Tests'
+- task: reportgenerator@4
+  displayName: ReportGenerator
+  inputs:
+    reports: '$(System.DefaultWorkingDirectory)/testresults/*/coverage.cobertura.xml'
+    targetdir: '$(System.DefaultWorkingDirectory)/coveragereport'
+    sourcedirs: WorkshopAPI/src/API
+- task: PublishCodeCoverageResults@1
+  displayName: 'Publish code coverage from $(System.DefaultWorkingDirectory)/testresults/*/Cobertura.xml'
+  inputs:
+    codeCoverageTool: Cobertura
+    summaryFileLocation: '$(System.DefaultWorkingDirectory)/coveragereport/Cobertura.xml'
+    pathToSources: '$(System.DefaultWorkingDirectory)/WorkshopAPI/src/API'
+    additionalCodeCoverageFiles: '$(System.DefaultWorkingDirectory)/coveragereport/index.html'
+    failIfCoverageEmpty: true
+- ${{ if eq(parameters.sonarCloud, true) }}:
+  - task: SonarCloudAnalyze@1
+    displayName: 'Sonar Analyse'
+- ${{ if eq(parameters.sonarCloud, true) }}:
+  - task: SonarCloudPublish@1
+    displayName: 'Sonar Publish'
+    inputs:
+      pollingTimeoutSec: '300'
+# Zip the Azure Function code for deployment
+- task: ArchiveFiles@2
+  displayName: 'Package Azure Function'
+  inputs:
+    rootFolderOrFile: '$(System.DefaultWorkingDirectory)/publish_output'
+    includeRootFolder: false
+    archiveType: zip
+    archiveFile: $(Build.ArtifactStagingDirectory)/${{ parameters.version }}.zip
+    replaceExistingArchive: true
+# upload the Zip file
+- publish: $(Build.ArtifactStagingDirectory)/${{ parameters.version }}.zip
+  artifact: function_package

@@ -89,6 +89,10 @@ stages:
       AppInsightsConnectionString: $[ stageDependencies.Setup.Setup.outputs['generateArmVariables.AppInsightsConnectionString'] ]
 
     steps:
+    - task: UseDotNet@2
+      inputs:
+        packageType: 'sdk'
+        version: '5.0.x'
     # Sonar configuration
     - task: SonarCloudPrepare@1
       inputs:
@@ -116,9 +120,9 @@ stages:
         command: 'publish'
         publishWebProjects: false
         projects: 'SelfUpdater/src/SelfUpdater.csproj'
-        arguments: '--output $(System.DefaultWorkingDirectory)/publish_output --configuration $(build_configuration) /p:VERSION=$(version_semantic)'
-        zipAfterPublish: false
-        modifyOutputPath: false
+        arguments: '--output $(Build.ArtifactStagingDirectory)/linux --runtime linux-x64 --self-contained --configuration $(build_configuration) /p:VERSION=$(version_semantic)'
+        zipAfterPublish: true
+        modifyOutputPath: true
     - task: SonarCloudAnalyze@1
       displayName: 'Sonar Analyse'
       condition: and(succeeded(), eq(variables.is_main_branch, true))
@@ -127,33 +131,37 @@ stages:
       inputs:
         pollingTimeoutSec: '300'
       condition: and(succeeded(), eq(variables.is_main_branch, true))
-    # Zip for deployment
-    - task: ArchiveFiles@2
-      displayName: 'Package $(app_name) App'
+    - task: DotNetCoreCLI@2
+      displayName: Build
       inputs:
-        rootFolderOrFile: '$(System.DefaultWorkingDirectory)/publish_output'
-        includeRootFolder: false
-        archiveType: zip
-        archiveFile: $(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic).zip
-        replaceExistingArchive: true
+        command: 'publish'
+        publishWebProjects: false
+        projects: 'SelfUpdater/src/SelfUpdater.csproj'
+        arguments: '--output $(Build.ArtifactStagingDirectory)/windows --runtime win-x64 --self-contained --configuration $(build_configuration) /p:VERSION=$(version_semantic)'
+        zipAfterPublish: true
+        modifyOutputPath: true
     # compute SHA
-    - pwsh: |
-        $hash = Get-FileHash $(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic).zip -Algorithm SHA256
-        "$( $hash.Hash )  $( Split-Path -Leaf $hash.Path )" > $(Build.ArtifactStagingDirectory)/$(app_name)-$(version_semantic)-sha256.txt
-    # this is the deployment step into Staging slot, Windows agent only!
-    - task: AzureFileCopy@3
-      displayName: 'Upload Zip to Staging'
+    # and upload into Staging account
+    - task: AzureCLI@2
+      displayName: compute SHA and upload
       inputs:
-        SourcePath: '$(Build.ArtifactStagingDirectory)'
-        additionalArgumentsForBlobCopy: |
-          '/Y' # Supresses all AZCopy Confirmations. Used here to allow overwrites
-          '/Pattern:$(app_name)-$(version_semantic)*.*' # Pattern of files to copy.
-          '/S' # Recursive Copy        
         azureSubscription: '$(arm_connection)'
-        Destination: 'AzureBlob'
-        storage: '$(StagingStorageAccount)'
-        ContainerName: '$(app_name)'
-        sasTokenTimeOutInMinutes: '20'
+        scriptType: 'pscore'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          param($fileName, $storageAccount, $baseContainer)
+          echo "${fileName}, ${storageAccount}, ${baseContainer}"
+          "windows","linux" | foreach {
+            $flavour = $_
+            pushd $flavour
+            Rename-Item -Path src.zip -NewName "${fileName}.zip"
+            $hash = Get-FileHash "${fileName}.zip" -Algorithm SHA256
+            "$( $hash.Hash )  $( Split-Path -Leaf $hash.Path )" > ${fileName}-sha256.txt
+            az storage blob upload-batch --destination ${baseContainer}/${flavour} --account-name $storageAccount --source .
+            popd
+          }
+        arguments: '-fileName "$(app_name)-$(version_semantic)" -storageAccount "$(StagingStorageAccount)" -baseContainer "$(app_name)"'
+        workingDirectory: $(Build.ArtifactStagingDirectory)
     - task: XplatGenerateReleaseNotes@3
       inputs:
         outputfile: '$(Build.ArtifactStagingDirectory)/ReleaseNotes.md'

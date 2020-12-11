@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Security;
 using System.Security.Cryptography;
 using System.Xml.XPath;
@@ -165,11 +166,19 @@ namespace SelfUpdater
                 iterator.Current.MoveToFollowing("Url", "");
                 string url = iterator.Current?.Value;
 
-                if (Path.GetExtension(name) == ".zip")
+                //filter
+                string prefix = RuntimeInformation.IsOSPlatform(OSPlatform.Linux)
+                    ? "linux/"
+                    : RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+                    ? "windows/"
+                    : "UNSUPPORTED_OS";
+
+                if (name.StartsWith(prefix)
+                    && Path.GetExtension(name) == ".zip")
                 {
                     result.Add(new VersionAvailable
                     {
-                        Name = name,
+                        Name = name.Replace(prefix,string.Empty),
                         Url = new Uri(url),
                         Version = ExtractVersion(name)
                     });
